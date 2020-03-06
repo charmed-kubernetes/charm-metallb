@@ -3,6 +3,7 @@
 import sys
 sys.path.append('lib')
 
+import yaml
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus
@@ -15,6 +16,13 @@ class MetalLBSpeakerCharm(CharmBase):
         self.speaker_image = OCIImageResource(self, 'speaker-image')
         self.framework.observe(self.on.install, self.set_pod_spec)
         self.framework.observe(self.on.upgrade_charm, self.set_pod_spec)
+
+    @staticmethod
+    def _get_pod_spec(config={}):
+        with open('metallb.yaml') as f_in:
+            spec = yaml.load(f_in)
+            spec.update(config)
+            return spec
 
     def set_pod_spec(self, event):
         if not self.model.unit.is_leader():
@@ -29,108 +37,7 @@ class MetalLBSpeakerCharm(CharmBase):
             return
 
         self.model.unit.status = MaintenanceStatus('Setting pod spec')
-        self.model.pod.set_spec({
-            'version': 3,
-            'containers': [{
-                'name': 'metallb-speaker',
-                'imageDetails': speaker_details,
-                'command': ['/entrypoint.sh'],
-                'args': [
-                    '--port=7472',
-                    '--config=config'
-                ],
-                'kubernetes': {
-                    'securityContext': {
-                        'allowPrivilegeEscalation': False,
-                        'capabilities': {
-                            'add': [
-                              'NET_ADMIN',
-                              'NET_RAW',
-                              'SYS_ADMIN'
-                            ],
-                            'drop': [
-                              'ALL'
-                            ]
-                        },
-                        'readOnlyRootFilesystem': True
-                    }
-                }
-            }],
-            'serviceAccount': {
-                'global': True,
-                'rules': [
-                    {
-                        'apiGroups': [''],
-                        'resources': [
-                            'services',
-                            'endpoints',
-                            'nodes'
-                        ],
-                        'verbs': [
-                            'get',
-                            'list',
-                            'watch'
-                        ]
-                    },
-                    {
-                        'apiGroups': [''],
-                        'resources': [
-                            'events'
-                        ],
-                        'verbs': [
-                            'create',
-                            'patch'
-                        ]
-                    },
-                    {
-                        'apiGroups': ['policy'],
-                        'resources': [
-                            'podsecuritypolicies'
-                        ],
-                        'verbs': [
-                            'use'
-                        ]
-                    }
-                ]
-            },
-            'kubernetesResources': {
-                'pod': {
-                    'hostNetwork': True
-                },
-                'customResourceDefinitions': {
-                    'network-attachment-definitions.k8s.cni.cncf.io': {
-                        'group': 'k8s.cni.cncf.io',
-                        'scope': 'Namespaced',
-                        'names': {
-                            'plural': 'network-attachment-definitions',
-                            'singular': 'network-attachment-definition',
-                            'kind': 'NetworkAttachmentDefinition',
-                            'shortNames': ['net-attach-def']
-                        },
-                        'versions': [{
-                            'name': 'v1',
-                            'served': True,
-                            'storage': True
-                        }],
-                        'validation': {
-                            'openAPIV3Schema': {
-                                'type': 'object',
-                                'properties': {
-                                    'spec': {
-                                        'type': 'object',
-                                        'properties': {
-                                            'config': {
-                                                'type': 'string'
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        })
+        self.model.pod.set_spec(self._get_pod_spec())
 
         self.model.unit.status = ActiveStatus()
 
