@@ -1,0 +1,23 @@
+name: metallb
+summary: MetalLB load balancer for Kubernetes
+maintainers:
+  - Kevin Monroe <kevin.monroe@canonical.com>
+description: |
+  MetalLB is a load-balancer implementation for bare metal Kubernetes clusters, using standard routing protocols.
+tags:
+  - misc
+series:
+  - kubernetes
+provides: {}
+requires: {}
+peers: {}
+resources:
+  controller-image:
+    type: oci-image
+    description: 'MetalLB controller image'
+  speaker-image:
+    type: oci-image
+    description: 'MetalLB speaker image'
+deployment:
+  type: daemon
+  service: omit
